@@ -1,3 +1,5 @@
+#include <WiFiManager.h>
+
 #define ARDUINO_ARCH_ESP8266
 #define ESP8266
 #define BUFFER_SIZE 1440
@@ -14,6 +16,8 @@
 #include <ArduinoJson.h>
 #include "OpenBCI_Wifi_Definitions.h"
 #include "OpenBCI_Wifi.h"
+
+//#define DEBUG
 
 boolean startWifiManager;
 boolean underSelfTest;
@@ -176,11 +180,12 @@ void requestWifiManagerStart() {
   // server.send(301, "text/html", "<meta http-equiv=\"refresh\" content=\"1; URL='/'\" />");
 
   String out = "<!DOCTYPE html><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><html lang=\"en\"><h1 style=\"margin:  auto\;width: 80%\;text-align: center\;\">Push The World</h1><br><p style=\"margin:  auto\;width: 80%\;text-align: center\;\"><a href='http://";
-  if (WiFi.localIP().toString().equals("192.168.4.1") || WiFi.localIP().toString().equals("0.0.0.0")) {
+  if (WiFi.localIP().toString().equals("192.168.4.1") || WiFi.localIP() == IPAddress() ) {
     out += "192.168.4.1";
   } else {
     out += WiFi.localIP().toString();
   }
+  
   out += HTTP_ROUTE;
   out += "'>Click to Go To WiFi Manager</a></p><html>";
   server.send(200, "text/html", out);
@@ -192,13 +197,15 @@ void requestWifiManagerStart() {
   startWifiManager = true;
 }
 
-JsonObject& getArgFromArgs(int args) {
-  DynamicJsonBuffer jsonBuffer(JSON_OBJECT_SIZE(args) + (40 * args));
-  JsonObject& root = jsonBuffer.parseObject(server.arg(0));
-  return root;
+DynamicJsonDocument getArgFromArgs(int args) {
+  
+  DynamicJsonDocument jsonDoc(JSON_OBJECT_SIZE(args) + (40 * args));
+  deserializeJson(jsonDoc, server.arg(0));
+  
+  return jsonDoc;
 }
 
-JsonObject& getArgFromArgs() {
+DynamicJsonDocument getArgFromArgs() {
   return getArgFromArgs(1);
 }
 
@@ -208,7 +215,7 @@ JsonObject& getArgFromArgs() {
 void setLatency() {
   if (noBodyInParam()) return returnNoBodyInPost();
 
-  JsonObject& root = getArgFromArgs();
+  DynamicJsonDocument root = getArgFromArgs();
 
   if (root.containsKey(JSON_LATENCY)) {
     wifi.setLatency(root[JSON_LATENCY]);
@@ -224,10 +231,10 @@ void setLatency() {
 void passthroughCommand() {
   if (noBodyInParam()) return returnNoBodyInPost();
   if (!wifi.spiHasMaster()) return returnNoSPIMaster();
-  JsonObject& root = getArgFromArgs();
+  DynamicJsonDocument root = getArgFromArgs();
 
   #ifdef DEBUG
-  root.printTo(Serial);
+  serializeJson(root, Serial);
   #endif
   if (root.containsKey(JSON_COMMAND)) {
     String cmds = root[JSON_COMMAND];
@@ -248,13 +255,14 @@ void passthroughCommand() {
   } else {
     return returnMissingRequiredParam(JSON_COMMAND);
   }
+
 }
 
 void tcpSetup() {
 
   // Parse args
   if(noBodyInParam()) return returnNoBodyInPost(); // no body
-  JsonObject& root = getArgFromArgs(8);
+  DynamicJsonDocument root = getArgFromArgs(8);
   if (!root.containsKey(JSON_TCP_IP)) return returnMissingRequiredParam(JSON_TCP_IP);
   String tempAddr = root[JSON_TCP_IP];
   IPAddress tempIPAddr;
@@ -325,7 +333,7 @@ void tcpSetup() {
   wifi.setOutputProtocol(wifi.OUTPUT_PROTOCOL_TCP);
 
   // const size_t bufferSize = JSON_OBJECT_SIZE(6) + 40*6;
-  // DynamicJsonBuffer jsonBuffer(bufferSize);
+  // DynamicJsonDocument jsonBuffer(bufferSize);
   // JsonObject& rootOut = jsonBuffer.createObject();
   sendHeadersForCORS();
   if (clientTCP.connect(wifi.tcpAddress, wifi.tcpPort)) {
@@ -353,7 +361,7 @@ void tcpSetup() {
 void udpSetup() {
   // Parse args
   if(noBodyInParam()) return returnNoBodyInPost(); // no body
-  JsonObject& root = getArgFromArgs(7);
+  DynamicJsonDocument root = getArgFromArgs(7);
   if (!root.containsKey(JSON_TCP_IP)) return returnMissingRequiredParam(JSON_TCP_IP);
   String tempAddr = root[JSON_TCP_IP];
   IPAddress tempIPAddr;
@@ -447,10 +455,13 @@ void initializeVariables() {
 }
 
 void setup() {
+  
   initializeVariables();
 
-  WiFi.mode(WIFI_AP_STA);
-  // WiFi.mode(WIFI_STA);
+  //WiFi.mode(WIFI_AP_STA);
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
+  
   // WiFi.mode(WIFI_AP);
 
   #ifdef DEBUG
@@ -458,6 +469,8 @@ void setup() {
   Serial.setDebugOutput(true);
   Serial.println("Serial started");
   Serial.println("Version: " + String(SOFTWARE_VERSION));
+  #else
+  Serial.begin(230400);
   #endif
 
   wifi.begin();
@@ -517,7 +530,7 @@ void setup() {
 #endif
     String ip = "192.168.4.1";
     String out = "<!DOCTYPE html><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><html lang=\"en\"><h1 style=\"margin:  auto\;width: 90%\;text-align: center\;\">Push The World</h1><br>";
-    if (WiFi.localIP().toString().equals("192.168.4.1") || WiFi.localIP().toString().equals("0.0.0.0")) {
+    if (WiFi.localIP().toString().equals("192.168.4.1") || WiFi.localIP() == IPAddress()) {
       if (WiFi.SSID().equals("")) {
         out += "<p style=\"margin:  auto\;width: 80%\;text-align: center\;\"><a href='http://";
         out += "192.168.4.1";
@@ -545,6 +558,7 @@ void setup() {
       out += HTTP_ROUTE_WIFI_DELETE;
       out += "'>Click to Erase Wifi Credentials</a></p><br>";
     }
+    
     out += "<p style=\"margin:  auto\;width: 80%\;text-align: center\;\"><a href='http://";
     if (WiFi.localIP().toString().equals("192.168.4.1") || WiFi.localIP().toString().equals("0.0.0.0")) {
       out += "192.168.4.1/update";
@@ -790,7 +804,7 @@ void loop() {
   if (tryConnectToAP) {
     if (WiFi.status() == WL_CONNECTED) {
       tryConnectToAP = false;
-      WiFi.mode(WIFI_STA);
+      //WiFi.mode(WIFI_STA);
       httpUpdater.setup(&server);
       server.begin();
       MDNS.addService("http", "tcp", 80);
@@ -803,7 +817,7 @@ void loop() {
       ledFlashes = 2;
       ledInterval = 500;
       ledLastFlash = millis();
-  } else if (millis() > (wifiConnectTimeout + 10000)) {
+    } else if (millis() > (wifiConnectTimeout + 10000)) {
 #ifdef DEBUG
       Serial.printf("Failed to connect to network with %d bytes on head\n", ESP.getFreeHeap());
 #endif
@@ -844,6 +858,7 @@ void loop() {
     Serial.println("Failed to get response in 1000ms");
 #endif
   }
+  
   if (startWifiManager) {
     startWifiManager = false;
 
@@ -876,9 +891,11 @@ void loop() {
   if (packetsToSend < 0) {
     packetsToSend = NUM_PACKETS_IN_RING_BUFFER_RAW + packetsToSend; // for wrap around
   }
+  
   if (packetsToSend > MAX_PACKETS_PER_SEND_TCP) {
     packetsToSend = MAX_PACKETS_PER_SEND_TCP;
   }
+  
   if((clientTCP.connected() || wifi.curOutputProtocol == wifi.OUTPUT_PROTOCOL_SERIAL || wifi.curOutputProtocol == wifi.OUTPUT_PROTOCOL_UDP) && (micros() > (lastSendToClient + wifi.getLatency()) || packetsToSend == MAX_PACKETS_PER_SEND_TCP) && (packetsToSend > 0)) {
     // Serial.printf("LS2C: %lums H: %u T: %u P2S: %d", (micros() - lastSendToClient)/1000, wifi.rawBufferHead, wifi.rawBufferTail, packetsToSend);
     digitalWrite(LED_NOTIFY, LOW);
@@ -900,23 +917,14 @@ void loop() {
     lastSendToClient = micros();
     if (wifi.curOutputProtocol == wifi.OUTPUT_PROTOCOL_TCP) {
       clientTCP.write(buffer, bufferPosition);
-    } else if (wifi.curOutputProtocol == wifi.OUTPUT_PROTOCOL_UDP) {
-      clientUDP.beginPacket(wifi.tcpAddress, wifi.tcpPort);
-      clientUDP.write(buffer, bufferPosition);
-      if (clientUDP.endPacket() == 1) {
-        // Serial.println(" udp0");
-      }
-      if (wifi.redundancy) {
+    } 
+    else if (wifi.curOutputProtocol == wifi.OUTPUT_PROTOCOL_UDP) {
+      for(int i = 0; i < (wifi.redundancy ? 3 : 1); i++) {
         clientUDP.beginPacket(wifi.tcpAddress, wifi.tcpPort);
         clientUDP.write(buffer, bufferPosition);
         if (clientUDP.endPacket() == 1) {
-          // Serial.println(" udp1");
-        }
-        clientUDP.beginPacket(wifi.tcpAddress, wifi.tcpPort);
-        clientUDP.write(buffer, bufferPosition);
-        if (clientUDP.endPacket() == 1) {
-          // Serial.println(" udp2");
-        }
+          // Serial.println(String(" udp0") + String(i));
+        }  
       }
     }
     bufferPosition = 0;

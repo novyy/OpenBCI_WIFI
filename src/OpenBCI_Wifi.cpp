@@ -6,8 +6,6 @@
 */
 #include "OpenBCI_Wifi.h"
 
-OpenBCI_Wifi_Class OpenBCI_Wifi;
-
 /***************************************************/
 /** PUBLIC METHODS *********************************/
 /***************************************************/
@@ -191,36 +189,36 @@ uint8_t OpenBCI_Wifi_Class::getHead(void) {
 
 String OpenBCI_Wifi_Class::getInfoAll(void) {
   const size_t argBufferSize = JSON_OBJECT_SIZE(8) + 135;
-  DynamicJsonBuffer jsonBuffer(argBufferSize);
-  JsonObject& root = jsonBuffer.createObject();
-  root.set(JSON_BOARD_CONNECTED, (bool)spiHasMaster());
+  DynamicJsonDocument jsonDoc(argBufferSize);
+  
+  jsonDoc[JSON_BOARD_CONNECTED] = (bool)spiHasMaster();
   // Serial.println("spiHasMaster: "); Serial.println(spiHasMaster() ? "true" : "false");
-  root[JSON_HEAP] = ESP.getFreeHeap();
-  root[JSON_TCP_IP] = WiFi.localIP().toString();
-  root[JSON_MAC] = getMac();
-  root[JSON_NAME] = getName();
-  root[JSON_NUM_CHANNELS] = getNumChannels();
-  root[JSON_VERSION] = getVersion();
-  root[JSON_LATENCY] = getLatency();
+  jsonDoc[JSON_HEAP] = ESP.getFreeHeap();
+  jsonDoc[JSON_TCP_IP] = WiFi.localIP().toString();
+  jsonDoc[JSON_MAC] = getMac();
+  jsonDoc[JSON_NAME] = getName();
+  jsonDoc[JSON_NUM_CHANNELS] = getNumChannels();
+  jsonDoc[JSON_VERSION] = getVersion();
+  jsonDoc[JSON_LATENCY] = getLatency();
   String output;
-  root.printTo(output);
+  serializeJson(jsonDoc, output);
   return output;
 }
 
 String OpenBCI_Wifi_Class::getInfoBoard(void) {
   const size_t argBufferSize = JSON_OBJECT_SIZE(4) + 150 + JSON_ARRAY_SIZE(getNumChannels());
-  DynamicJsonBuffer jsonBuffer(argBufferSize);
-  JsonObject& root = jsonBuffer.createObject();
-  root.set(JSON_BOARD_CONNECTED, (bool)spiHasMaster());
+  DynamicJsonDocument jsonDoc(argBufferSize);
+  
+  jsonDoc[JSON_BOARD_CONNECTED] = (bool)spiHasMaster();
   // Serial.println("spiHasMaster: "); Serial.println(spiHasMaster() ? "true" : "false");
-  root[JSON_BOARD_TYPE] = getCurBoardTypeString();
-  root[JSON_NUM_CHANNELS] = getNumChannels();
-  JsonArray& gainsArr = root.createNestedArray(JSON_GAINS);
+  jsonDoc[JSON_BOARD_TYPE] = getCurBoardTypeString();
+  jsonDoc[JSON_NUM_CHANNELS] = getNumChannels();
+  JsonArray gainsArr = jsonDoc.createNestedArray(JSON_GAINS);
   for (uint8_t i = 0; i < getNumChannels(); i++) {
     gainsArr.add(_gains[i]);
   }
   String output;
-  root.printTo(output);
+  serializeJson(jsonDoc, output);
   return output;
 }
 
@@ -243,17 +241,18 @@ String OpenBCI_Wifi_Class::getInfoMQTT(boolean clientMQTTConnected) {
 
 String OpenBCI_Wifi_Class::getInfoTCP(boolean clientTCPConnected) {
   const size_t bufferSize = JSON_OBJECT_SIZE(6) + 40*6;
-  StaticJsonBuffer<bufferSize> jsonBuffer;
-  String json;
-  JsonObject& root = jsonBuffer.createObject();
-  root[JSON_CONNECTED] = clientTCPConnected ? true : false;
-  root[JSON_TCP_DELIMITER] = tcpDelimiter ? true : false;
-  root[JSON_TCP_IP] = tcpAddress.toString();
-  root[JSON_TCP_OUTPUT] = getCurOutputModeString();
-  root[JSON_TCP_PORT] = tcpPort;
-  root[JSON_LATENCY] = getLatency();
-  root.printTo(json);
-  return json;
+  StaticJsonDocument<bufferSize> jsonDoc;
+  
+  jsonDoc[JSON_CONNECTED] = clientTCPConnected ? true : false;
+  jsonDoc[JSON_TCP_DELIMITER] = tcpDelimiter ? true : false;
+  jsonDoc[JSON_TCP_IP] = tcpAddress.toString();
+  jsonDoc[JSON_TCP_OUTPUT] = getCurOutputModeString();
+  jsonDoc[JSON_TCP_PORT] = tcpPort;
+  jsonDoc[JSON_LATENCY] = getLatency();
+
+  String output;
+  serializeJson(jsonDoc, output);
+  return output;
 }
 
 /////////////////////////
