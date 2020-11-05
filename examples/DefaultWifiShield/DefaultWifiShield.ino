@@ -5,7 +5,6 @@
 #define BUFFER_SIZE 1440
 
 #include <ESP8266WiFi.h>
-#include <DNSServer.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPUpdateServer.h>
 #include <ESP8266SSDP.h>
@@ -213,7 +212,7 @@ DynamicJsonDocument getArgFromArgs() {
 * Used to set the latency of the system.
 */
 void setLatency() {
-  if (noBodyInParam()) return returnNoBodyInPost();
+  if (noBodyInParam()) return returnNoBodyInPost(); 
 
   DynamicJsonDocument root = getArgFromArgs();
 
